@@ -12,6 +12,7 @@ import {
   Platform,
   Image,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
@@ -86,9 +87,58 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   
   const flatListRef = useRef<FlatList>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textInputRef = useRef<TextInput>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isEmojiKeyboard, setIsEmojiKeyboard] = useState(false);
+  const [showEmojiHint, setShowEmojiHint] = useState(false);
+  const [showQuickEmojis, setShowQuickEmojis] = useState(false);
 
   useEffect(() => {
     loadCurrentUser();
+  }, []);
+
+  // Keyboard event listeners for emoji support
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      // More sophisticated emoji keyboard detection
+      // Emoji keyboards are typically smaller and have different characteristics
+      const isEmoji = e.endCoordinates.height < 300 || 
+                     (Platform.OS === 'ios' && e.endCoordinates.height < 400) ||
+                     (Platform.OS === 'android' && e.endCoordinates.height < 250);
+      setIsEmojiKeyboard(isEmoji);
+      
+      // Close emoji picker when keyboard appears
+      setShowQuickEmojis(false);
+      
+      // Don't auto-scroll when keyboard appears for inverted FlatList
+      // The KeyboardAvoidingView will handle the layout adjustment
+    });
+
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+      setIsEmojiKeyboard(false);
+    });
+
+    // Additional listener for keyboard frame changes (useful for emoji keyboards)
+    const keyboardDidChangeFrameListener = Keyboard.addListener('keyboardDidChangeFrame', (e) => {
+      if (e.endCoordinates.height > 0) {
+        setKeyboardHeight(e.endCoordinates.height);
+        const isEmoji = e.endCoordinates.height < 300 || 
+                       (Platform.OS === 'ios' && e.endCoordinates.height < 400) ||
+                       (Platform.OS === 'android' && e.endCoordinates.height < 250);
+        setIsEmojiKeyboard(isEmoji);
+        
+        // Don't auto-scroll on keyboard frame changes for inverted FlatList
+        // The KeyboardAvoidingView will handle the layout adjustment
+      }
+    });
+
+    return () => {
+      keyboardDidShowListener?.remove();
+      keyboardDidHideListener?.remove();
+      keyboardDidChangeFrameListener?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -179,6 +229,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       
       if (isNearBottom) {
         // If unread messages are near bottom, just scroll to bottom
+        // Since FlatList is inverted, scrollToEnd scrolls to top (most recent messages)
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 500);
@@ -197,6 +248,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       }
     } else {
       // If no unread messages, scroll to bottom to show most recent
+      // Since FlatList is inverted, scrollToEnd scrolls to top (most recent messages)
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 500);
@@ -787,7 +839,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         backgroundColor="transparent"
         translucent
       />
-      <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
@@ -812,11 +869,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         </View>
 
         {/* Messages */}
-        <KeyboardAvoidingView 
-          style={[styles.messagesContainer, { backgroundColor: colorScheme === 'dark' ? '#121212' : '#FFFFFF' }]}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
+        <View style={[styles.messagesContainer, { backgroundColor: colorScheme === 'dark' ? '#121212' : '#FFFFFF' }]}>
           <FlatList
             ref={flatListRef}
             data={[...messageGroups].reverse()}
@@ -834,10 +887,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           />
 
           {/* Message Input */}
-          <View style={[styles.inputContainer, { 
-            backgroundColor: colorScheme === 'dark' ? '#1e1e1e' : '#F8F9FA',
-            borderTopColor: colorScheme === 'dark' ? '#333333' : '#E1E5E9'
-          }]}>
+          <View style={[
+            styles.inputContainer, 
+            { 
+              backgroundColor: colorScheme === 'dark' ? '#1e1e1e' : '#F8F9FA',
+              borderTopColor: colorScheme === 'dark' ? '#333333' : '#E1E5E9',
+              paddingBottom: isEmojiKeyboard ? 10 : 12,
+              minHeight: isEmojiKeyboard ? 60 : 70
+            }
+          ]}>
             {isRecording ? (
               // Recording UI
               <View style={styles.recordingContainer}>
@@ -862,19 +920,131 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             ) : (
               // Normal input UI
               <>
-                <TextInput
-                  style={[styles.textInput, { 
-                    backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF', 
-                    color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
-                    borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9' 
-                  }]}
-                  placeholder="Type a message..."
-                  placeholderTextColor={colorScheme === 'dark' ? '#888888' : '#8E8E93'}
-                  value={newMessage}
-                  onChangeText={setNewMessage}
-                  multiline
-                  maxLength={500}
-                />
+                <View style={styles.inputRow}>
+                  <TextInput
+                    ref={textInputRef}
+                    style={[styles.textInput, { 
+                      backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF', 
+                      color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
+                      borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9' 
+                    }]}
+                    placeholder="Type a message..."
+                    placeholderTextColor={colorScheme === 'dark' ? '#888888' : '#8E8E93'}
+                    value={newMessage}
+                    onChangeText={setNewMessage}
+                    multiline
+                    maxLength={500}
+                  />
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.emojiButton,
+                      { 
+                        backgroundColor: isEmojiKeyboard 
+                          ? (colorScheme === 'dark' ? '#0A84FF' : '#007AFF')
+                          : (colorScheme === 'dark' ? '#404040' : '#E1E5E9')
+                      }
+                    ]}
+                    onPress={() => {
+                      // Toggle quick emoji picker
+                      setShowQuickEmojis(!showQuickEmojis);
+                      setShowEmojiHint(false);
+                    }}
+                  >
+                    <Text style={[styles.emojiButtonText, { 
+                      color: isEmojiKeyboard ? '#FFFFFF' : (colorScheme === 'dark' ? '#FFFFFF' : '#000000')
+                    }]}>
+                      😊
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  {showQuickEmojis && (
+                    <>
+                      {/* Touchable overlay to close picker when tapping outside */}
+                      <TouchableOpacity
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                          zIndex: 999,
+                        }}
+                        activeOpacity={1}
+                        onPress={() => setShowQuickEmojis(false)}
+                      />
+                      
+                      <View style={{
+                        position: 'absolute',
+                        bottom: 60,
+                        left: 0,
+                        right: 0,
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF',
+                        borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 5,
+                        zIndex: 1000,
+                      }}>
+                        <View style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: 8,
+                        }}>
+                          <Text style={{
+                            fontSize: 12,
+                            fontWeight: '600',
+                            color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
+                          }}>
+                            Quick Emojis
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => setShowQuickEmojis(false)}
+                            style={{
+                              padding: 4,
+                              borderRadius: 4,
+                              backgroundColor: colorScheme === 'dark' ? '#404040' : '#F0F0F0',
+                            }}
+                          >
+                            <Text style={{ fontSize: 14, color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      <View style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-around',
+                        flexWrap: 'wrap',
+                      }}>
+                        {['😊', '😂', '❤️', '👍', '🎉', '🔥', '😍', '🤔', '😭', '😎', '🥳', '💯'].map((emoji, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            style={{
+                              padding: 8,
+                              borderRadius: 8,
+                              backgroundColor: colorScheme === 'dark' ? '#404040' : '#F0F0F0',
+                              margin: 2,
+                            }}
+                            onPress={() => {
+                              setNewMessage(prev => prev + emoji);
+                              // Don't close picker, allow multiple selections
+                              textInputRef.current?.focus();
+                            }}
+                          >
+                            <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                    </>
+                  )}
+                </View>
                 
                 {newMessage.trim() ? (
                   <TouchableOpacity
@@ -906,8 +1076,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               </>
             )}
           </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+        </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
@@ -1053,6 +1224,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E1E5E9',
   },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    flex: 1,
+    marginRight: 8,
+    minHeight: 44,
+  },
   textInput: {
     flex: 1,
     borderWidth: 1,
@@ -1062,7 +1240,20 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     marginRight: 8,
     fontSize: 16,
+    minHeight: 44,
   },
+  emojiButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  emojiButtonText: {
+    fontSize: 18,
+  },
+
   sendButton: {
     width: 40,
     height: 40,
