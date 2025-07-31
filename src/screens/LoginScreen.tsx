@@ -24,6 +24,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const { colors, colorScheme, toggleColorScheme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -119,21 +120,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Password</Text>
-              <TextInput
-                style={[
-                  styles.input, 
-                  { 
-                    backgroundColor: colors.inputBackground,
-                    borderColor: colors.inputBorder,
-                    color: colors.text
-                  }
-                ]}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[
+                    styles.passwordInput, 
+                    { 
+                      backgroundColor: colors.inputBackground,
+                      borderColor: colors.inputBorder,
+                      color: colors.text
+                    }
+                  ]}
+                  placeholder="Enter your password"
+                  placeholderTextColor={colors.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={[styles.passwordToggleIcon, { color: colors.textSecondary }]}>
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity 
@@ -150,6 +161,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               ) : (
                 <Text style={[styles.loginButtonText, { color: colors.buttonText }]}>Login</Text>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={() => navigation.navigate('ForgotPassword')}
+            >
+              <Text style={[styles.forgotPasswordText, { color: colors.text }]}>
+                Forgot Password?
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -239,6 +259,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
   },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    borderWidth: 0,
+  },
+  passwordToggle: {
+    padding: 10,
+  },
+  passwordToggleIcon: {
+    fontSize: 24,
+  },
   loginButton: {
     borderRadius: 12,
     paddingVertical: 16,
@@ -249,6 +289,14 @@ const styles = StyleSheet.create({
   loginButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  forgotPasswordButton: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  forgotPasswordText: {
+    fontSize: 16,
+    textDecorationLine: 'underline',
   },
   registerButton: {
     alignItems: 'center',

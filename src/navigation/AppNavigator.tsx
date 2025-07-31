@@ -4,6 +4,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator } from 'react-native';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import VerifyOTPScreen from '../screens/VerifyOTPScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import ChatsScreen from '../screens/ChatsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SearchUsersScreen from '../screens/SearchUsersScreen';
@@ -15,6 +18,9 @@ import { useTheme } from '../theme/ThemeContext';
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  VerifyOTP: { email: string };
+  ResetPassword: { email: string };
   Chats: undefined;
   SearchUsers: undefined;
   Notifications: undefined;
@@ -78,6 +84,9 @@ const AppNavigator = () => {
       >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="Chats" component={ChatsScreen} />
         <Stack.Screen name="SearchUsers" component={SearchUsersScreen} />
         <Stack.Screen name="Notifications" component={NotificationScreen} />

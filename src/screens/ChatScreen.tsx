@@ -13,9 +13,11 @@ import {
   Image,
   Alert,
   Keyboard,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeContext';
 import { getCurrentUser, db } from '../firebase';
 import { uploadAudioToCloudinary } from '../services/cloudinary';
@@ -44,6 +46,15 @@ interface Message {
   };
   timestamp: any; // Firestore timestamp
   seenBy: { [userId: string]: string }; // Read receipts: userId -> timestamp
+  replyTo?: {
+    id: string;
+    text?: string;
+    voiceNote?: {
+      url: string;
+      duration: number;
+    };
+    senderId: string;
+  };
 }
 
 interface MessageGroup {
@@ -92,6 +103,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [isEmojiKeyboard, setIsEmojiKeyboard] = useState(false);
   const [showEmojiHint, setShowEmojiHint] = useState(false);
   const [showQuickEmojis, setShowQuickEmojis] = useState(false);
+  
+  // Reply functionality states
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [replyInputText, setReplyInputText] = useState('');
+  
+  // Animated values for gesture handling
+  const animatedValues = useRef<{ [key: string]: Animated.Value }>({});
 
   useEffect(() => {
     loadCurrentUser();
@@ -150,6 +168,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   useEffect(() => {
     groupMessagesByDate();
   }, [messages]);
+
+
 
   // Scroll to bottom when message groups change
   useEffect(() => {
@@ -353,7 +373,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       const audioUrl = await uploadAudioToCloudinary(uri);
       
       // Create message data
-      const messageData = {
+      const messageData: any = {
         senderId: currentUser.id,
         voiceNote: {
           url: audioUrl,
@@ -362,6 +382,26 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         timestamp: serverTimestamp(),
         seenBy: {},
       };
+
+      // Add reply data if replying to a message
+      if (replyingTo) {
+        const replyData: any = {
+          id: replyingTo.id,
+          senderId: replyingTo.senderId,
+        };
+        
+        // Only include text if it exists
+        if (replyingTo.text) {
+          replyData.text = replyingTo.text;
+        }
+        
+        // Only include voiceNote if it exists
+        if (replyingTo.voiceNote) {
+          replyData.voiceNote = replyingTo.voiceNote;
+        }
+        
+        messageData.replyTo = replyData;
+      }
 
       const chatRef = doc(db, 'chats', chatId);
       const messagesRef = collection(chatRef, 'messages');
@@ -376,9 +416,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         lastMessageSenderId: currentUser.id,
       });
 
-      // Reset recording states
+      // Reset recording states and clear reply
       setRecordingUri(null);
       setRecordingDuration(0);
+      setReplyingTo(null);
 
     } catch (error) {
       console.error('Error sending voice note:', error);
@@ -423,6 +464,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       setSound(null);
       setIsPlaying(null);
     }
+  };
+
+  // Reply functionality
+  const handleReplyToMessage = (message: Message) => {
+    setReplyingTo(message);
+    setReplyInputText('');
+    textInputRef.current?.focus();
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+    setReplyInputText('');
   };
 
   const onViewableItemsChanged = ({ viewableItems }: any) => {
@@ -586,12 +639,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     setSending(true);
     
     try {
-      const messageData = {
+      const messageData: any = {
         senderId: currentUser.id,
         text: messageText,
         timestamp: serverTimestamp(),
         seenBy: {}, // Initialize seenBy field
       };
+
+      // Add reply data if replying to a message
+      if (replyingTo) {
+        const replyData: any = {
+          id: replyingTo.id,
+          senderId: replyingTo.senderId,
+        };
+        
+        // Only include text if it exists
+        if (replyingTo.text) {
+          replyData.text = replyingTo.text;
+        }
+        
+        // Only include voiceNote if it exists
+        if (replyingTo.voiceNote) {
+          replyData.voiceNote = replyingTo.voiceNote;
+        }
+        
+        messageData.replyTo = replyData;
+      }
 
       const chatRef = doc(db, 'chats', chatId);
       const messagesRef = collection(chatRef, 'messages');
@@ -605,6 +678,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         lastMessageTime: serverTimestamp(),
         lastMessageSenderId: currentUser.id,
       });
+
+      // Clear reply state after sending
+      setReplyingTo(null);
 
       // No need to scroll manually with inverted FlatList
 
@@ -664,32 +740,131 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         messageStatus = 'Sent';
       }
     }
+
+    // Gesture handling for swipe to reply
+    if (!animatedValues.current[item.id]) {
+      animatedValues.current[item.id] = new Animated.Value(0);
+    }
+    const translateX = animatedValues.current[item.id];
+    
+    const onGestureEvent = Animated.event(
+      [{ nativeEvent: { translationX: translateX } }],
+      { useNativeDriver: true }
+    );
+
+    // Add visual feedback during gesture
+    const onGestureUpdate = (event: any) => {
+      const { translationX } = event.nativeEvent;
+      const isSwipingInCorrectDirection = isMyMessage 
+        ? translationX < -10  // Swipe left for sent messages
+        : translationX > 10;  // Swipe right for received messages
+      
+      if (isSwipingInCorrectDirection) {
+        // You could add visual feedback here if needed
+      }
+    };
+
+    const onHandlerStateChange = (event: any) => {
+      if (event.nativeEvent.state === State.END) {
+        const { translationX } = event.nativeEvent;
+        
+        // For received messages: swipe right to reply
+        // For sent messages: swipe left to reply
+        const shouldReply = isMyMessage 
+          ? translationX < -30  // Swipe left for sent messages (reduced threshold)
+          : translationX > 30;  // Swipe right for received messages (reduced threshold)
+        
+        if (shouldReply) {
+          handleReplyToMessage(item);
+        }
+        
+        // Reset position
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    };
     
     return (
       <View style={[
         styles.messageContainer,
-        isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer
+        isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer,
       ]}>
-        <View style={[
-          styles.messageBubble,
-          isMyMessage 
-            ? [styles.myMessageBubble, { 
-                backgroundColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' 
-              }]
-            : [styles.otherMessageBubble, { 
-                backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#E9E9EB' 
-              }]
-        ]}>
-          {item.text && (
-            <Text style={[
-              styles.messageText,
+        <PanGestureHandler
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
+        >
+          <Animated.View 
+            style={[
+              styles.messageBubble,
               isMyMessage 
-                ? { color: '#FFFFFF' }
-                : { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }
-            ]}>
-              {item.text}
-            </Text>
-          )}
+                ? [styles.myMessageBubble, { 
+                    backgroundColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' 
+                  }]
+                : [styles.otherMessageBubble, { 
+                    backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#E9E9EB' 
+                  }],
+              {
+                transform: [{ translateX }],
+              }
+            ]}
+          >
+            {/* Reply preview */}
+            {item.replyTo && (
+              <View style={[styles.replyPreview, { 
+                backgroundColor: isMyMessage 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : (colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'),
+                borderLeftColor: isMyMessage ? '#FFFFFF' : (colorScheme === 'dark' ? '#FFFFFF' : '#000000')
+              }]}>
+                <Text style={[styles.replyPreviewLabel, { 
+                  color: isMyMessage 
+                    ? 'rgba(255, 255, 255, 0.8)' 
+                    : (colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)')
+                }]}>
+                  {item.replyTo.senderId === currentUser?.id ? 'You' : userData.name}
+                </Text>
+                {item.replyTo.text && (
+                  <Text style={[styles.replyPreviewText, { 
+                    color: isMyMessage 
+                      ? 'rgba(255, 255, 255, 0.7)' 
+                      : (colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)')
+                  }]} numberOfLines={1}>
+                    {item.replyTo.text}
+                  </Text>
+                )}
+                {item.replyTo.voiceNote && (
+                  <View style={styles.replyPreviewVoice}>
+                    <Text style={[styles.replyPreviewVoiceIcon, { 
+                      color: isMyMessage 
+                        ? 'rgba(255, 255, 255, 0.7)' 
+                        : (colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)')
+                    }]}>
+                      🎤
+                    </Text>
+                    <Text style={[styles.replyPreviewVoiceText, { 
+                      color: isMyMessage 
+                        ? 'rgba(255, 255, 255, 0.7)' 
+                        : (colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)')
+                    }]}>
+                      Voice Note
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+            
+            {item.text && (
+              <Text style={[
+                styles.messageText,
+                isMyMessage 
+                  ? { color: '#FFFFFF' }
+                  : { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }
+              ]}>
+                {item.text}
+              </Text>
+            )}
           
           {item.voiceNote && (
             <View style={styles.voiceNoteContainer}>
@@ -792,7 +967,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               </View>
             )}
           </View>
-        </View>
+        </Animated.View>
+      </PanGestureHandler>
       </View>
     );
   };
@@ -885,138 +1061,192 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             windowSize={10}
             inverted={true}
           />
+        </View>
 
-          {/* Message Input */}
-          <View style={[
-            styles.inputContainer, 
-            { 
-              backgroundColor: colorScheme === 'dark' ? '#1e1e1e' : '#F8F9FA',
-              borderTopColor: colorScheme === 'dark' ? '#333333' : '#E1E5E9',
-              paddingBottom: isEmojiKeyboard ? 10 : 12,
-              minHeight: isEmojiKeyboard ? 60 : 70
-            }
-          ]}>
-            {isRecording ? (
-              // Recording UI
-              <View style={styles.recordingContainer}>
-                <View style={styles.recordingInfo}>
-                  <View style={styles.recordingIndicator}>
-                    <Text style={styles.recordingDot}>🔴</Text>
-                  </View>
-                  <Text style={[styles.recordingText, { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }]}>
-                    Recording...
+        {/* Reply UI - Moved outside messages container */}
+        {replyingTo && (
+          <View style={[styles.replyContainer, { 
+            backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#F0F0F0',
+            borderTopColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9'
+          }]}>
+            <View style={styles.replyContent}>
+              <View style={styles.replyHeader}>
+                <Text style={[styles.replyLabel, { 
+                  color: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' 
+                }]}>
+                  Replying to {replyingTo.senderId === currentUser?.id ? 'yourself' : userData.name}
+                </Text>
+                <TouchableOpacity onPress={cancelReply}>
+                  <Text style={[styles.replyCancel, { 
+                    color: colorScheme === 'dark' ? '#FF3B30' : '#FF3B30' 
+                  }]}>
+                    ✕
                   </Text>
-                  <Text style={[styles.recordingDuration, { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }]}>
-                    {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.stopRecordingButton, { backgroundColor: '#FF3B30' }]}
-                  onPress={stopRecording}
-                >
-                  <Text style={styles.stopRecordingText}>Stop</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              // Normal input UI
-              <>
-                <View style={styles.inputRow}>
-                  <TextInput
-                    ref={textInputRef}
-                    style={[styles.textInput, { 
-                      backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF', 
-                      color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
-                      borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9' 
-                    }]}
-                    placeholder="Type a message..."
-                    placeholderTextColor={colorScheme === 'dark' ? '#888888' : '#8E8E93'}
-                    value={newMessage}
-                    onChangeText={setNewMessage}
-                    multiline
-                    maxLength={500}
-                  />
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.emojiButton,
-                      { 
-                        backgroundColor: isEmojiKeyboard 
-                          ? (colorScheme === 'dark' ? '#0A84FF' : '#007AFF')
-                          : (colorScheme === 'dark' ? '#404040' : '#E1E5E9')
-                      }
-                    ]}
-                    onPress={() => {
-                      // Toggle quick emoji picker
-                      setShowQuickEmojis(!showQuickEmojis);
-                      setShowEmojiHint(false);
-                    }}
-                  >
-                    <Text style={[styles.emojiButtonText, { 
-                      color: isEmojiKeyboard ? '#FFFFFF' : (colorScheme === 'dark' ? '#FFFFFF' : '#000000')
+              <View style={styles.replyMessage}>
+                {replyingTo.text ? (
+                  <Text style={[styles.replyText, { 
+                    color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' 
+                  }]} numberOfLines={2}>
+                    {replyingTo.text}
+                  </Text>
+                ) : replyingTo.voiceNote ? (
+                  <View style={styles.replyVoiceNote}>
+                    <Text style={[styles.replyVoiceIcon, { 
+                      color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' 
                     }]}>
-                      😊
+                      🎤
                     </Text>
-                  </TouchableOpacity>
-                  
-                  {showQuickEmojis && (
-                    <>
-                      {/* Touchable overlay to close picker when tapping outside */}
-                      <TouchableOpacity
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                          zIndex: 999,
-                        }}
-                        activeOpacity={1}
-                        onPress={() => setShowQuickEmojis(false)}
-                      />
-                      
-                      <View style={{
+                    <Text style={[styles.replyVoiceText, { 
+                      color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' 
+                    }]}>
+                      Voice Note • {Math.floor(replyingTo.voiceNote.duration / 60)}:{(replyingTo.voiceNote.duration % 60).toString().padStart(2, '0')}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.replyText, { 
+                    color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' 
+                  }]}>
+                    Message content not available
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Message Input */}
+        <View style={[
+          styles.inputContainer, 
+          { 
+            backgroundColor: colorScheme === 'dark' ? '#1e1e1e' : '#F8F9FA',
+            borderTopColor: colorScheme === 'dark' ? '#333333' : '#E1E5E9',
+            paddingBottom: isEmojiKeyboard ? 10 : 12,
+            minHeight: isEmojiKeyboard ? 60 : 70
+          }
+        ]}>
+          {isRecording ? (
+            // Recording UI
+            <View style={styles.recordingContainer}>
+              <View style={styles.recordingInfo}>
+                <View style={styles.recordingIndicator}>
+                  <Text style={styles.recordingDot}>🔴</Text>
+                </View>
+                <Text style={[styles.recordingText, { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }]}>
+                  Recording...
+                </Text>
+                <Text style={[styles.recordingDuration, { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }]}>
+                  {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.stopRecordingButton, { backgroundColor: '#FF3B30' }]}
+                onPress={stopRecording}
+              >
+                <Text style={styles.stopRecordingText}>Stop</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            // Normal input UI
+            <>
+              <View style={styles.inputRow}>
+                <TextInput
+                  ref={textInputRef}
+                  style={[styles.textInput, { 
+                    backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF', 
+                    color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
+                    borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9' 
+                  }]}
+                  placeholder="Type a message..."
+                  placeholderTextColor={colorScheme === 'dark' ? '#888888' : '#8E8E93'}
+                  value={newMessage}
+                  onChangeText={setNewMessage}
+                  multiline
+                  maxLength={500}
+                />
+                
+                <TouchableOpacity
+                  style={[
+                    styles.emojiButton,
+                    { 
+                      backgroundColor: isEmojiKeyboard 
+                        ? (colorScheme === 'dark' ? '#0A84FF' : '#007AFF')
+                        : (colorScheme === 'dark' ? '#404040' : '#E1E5E9')
+                    }
+                  ]}
+                  onPress={() => {
+                    // Toggle quick emoji picker
+                    setShowQuickEmojis(!showQuickEmojis);
+                    setShowEmojiHint(false);
+                  }}
+                >
+                  <Text style={[styles.emojiButtonText, { 
+                    color: isEmojiKeyboard ? '#FFFFFF' : (colorScheme === 'dark' ? '#FFFFFF' : '#000000')
+                  }]}>
+                    😊
+                  </Text>
+                </TouchableOpacity>
+                
+                {showQuickEmojis && (
+                  <>
+                    {/* Touchable overlay to close picker when tapping outside */}
+                    <TouchableOpacity
+                      style={{
                         position: 'absolute',
-                        bottom: 60,
+                        top: 0,
                         left: 0,
                         right: 0,
-                        paddingHorizontal: 16,
-                        paddingVertical: 12,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF',
-                        borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9',
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.2,
-                        shadowRadius: 8,
-                        elevation: 5,
-                        zIndex: 1000,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        zIndex: 999,
+                      }}
+                      activeOpacity={1}
+                      onPress={() => setShowQuickEmojis(false)}
+                    />
+                    
+                    <View style={{
+                      position: 'absolute',
+                      bottom: 60,
+                      left: 0,
+                      right: 0,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      backgroundColor: colorScheme === 'dark' ? '#2d2d2d' : '#FFFFFF',
+                      borderColor: colorScheme === 'dark' ? '#404040' : '#E1E5E9',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 8,
+                      elevation: 5,
+                      zIndex: 1000,
+                    }}>
+                      <View style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 8,
                       }}>
-                        <View style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: 8,
+                        <Text style={{
+                          fontSize: 12,
+                          fontWeight: '600',
+                          color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
                         }}>
-                          <Text style={{
-                            fontSize: 12,
-                            fontWeight: '600',
-                            color: colorScheme === 'dark' ? '#FFFFFF' : '#000000',
-                          }}>
-                            Quick Emojis
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => setShowQuickEmojis(false)}
-                            style={{
-                              padding: 4,
-                              borderRadius: 4,
-                              backgroundColor: colorScheme === 'dark' ? '#404040' : '#F0F0F0',
-                            }}
-                          >
-                            <Text style={{ fontSize: 14, color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
+                          Quick Emojis
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setShowQuickEmojis(false)}
+                          style={{
+                            padding: 4,
+                            borderRadius: 4,
+                            backgroundColor: colorScheme === 'dark' ? '#404040' : '#F0F0F0',
+                          }}
+                        >
+                          <Text style={{ fontSize: 14, color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
                       <View style={{
                         flexDirection: 'row',
                         justifyContent: 'space-around',
@@ -1042,44 +1272,43 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
                         ))}
                       </View>
                     </View>
-                    </>
-                  )}
-                </View>
-                
-                {newMessage.trim() ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.sendButton,
-                      { backgroundColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' }
-                    ]}
-                    onPress={sendMessage}
-                    disabled={sending}
-                  >
-                    <Text style={[styles.sendButtonText, { color: '#FFFFFF' }]}>
-                      {sending ? '...' : '→'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.voiceButton,
-                      { backgroundColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' }
-                    ]}
-                    onPress={startRecording}
-                    disabled={sending}
-                  >
-                    <Text style={[styles.voiceButtonText, { color: '#FFFFFF' }]}>
-                      🎤
-                    </Text>
-                  </TouchableOpacity>
+                  </>
                 )}
-              </>
-            )}
-          </View>
+              </View>
+              
+              {newMessage.trim() ? (
+                <TouchableOpacity
+                  style={[
+                    styles.sendButton,
+                    { backgroundColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' }
+                  ]}
+                  onPress={sendMessage}
+                  disabled={sending}
+                >
+                  <Text style={[styles.sendButtonText, { color: '#FFFFFF' }]}>
+                    {sending ? '...' : '→'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.voiceButton,
+                    { backgroundColor: colorScheme === 'dark' ? '#0A84FF' : '#007AFF' }
+                  ]}
+                  onPress={startRecording}
+                  disabled={sending}
+                >
+                  <Text style={[styles.voiceButtonText, { color: '#FFFFFF' }]}>
+                    🎤
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
+  </LinearGradient>
   );
 };
 
@@ -1425,6 +1654,84 @@ const styles = StyleSheet.create({
   voiceButtonText: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  // Reply UI styles
+  replyContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E1E5E9',
+    minHeight: 60, // Ensure minimum height for visibility
+    zIndex: 1000, // Ensure it's above other elements
+  },
+  replyContent: {
+    flex: 1,
+  },
+  replyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  replyLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  replyCancel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+  },
+  replyMessage: {
+    paddingLeft: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#007AFF',
+  },
+  replyText: {
+    fontSize: 14,
+  },
+  replyVoiceNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  replyVoiceIcon: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+  replyVoiceText: {
+    fontSize: 12,
+  },
+  // Reply preview styles
+  replyPreview: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+  },
+  replyPreviewLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  replyPreviewText: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  replyPreviewVoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  replyPreviewVoiceIcon: {
+    fontSize: 10,
+    marginRight: 4,
+  },
+  replyPreviewVoiceText: {
+    fontSize: 10,
+    opacity: 0.8,
   },
 });
 
