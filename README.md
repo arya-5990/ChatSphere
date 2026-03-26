@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ChatSphere 💬
 
 A modern, secure real-time chat application built with React Native, Expo, Firebase, and Cloudinary. ChatSphere provides a comprehensive messaging experience with advanced features like read receipts, voice notes, media sharing, and secure authentication.
@@ -299,3 +300,7 @@ npm start
 ---
 
 **Built with ❤️ using React Native, Expo, Firebase, and Cloudinary.**
+=======
+# ChatSphere
+ChatSphere is a secure real-time chat app built with React Native, Expo, Firebase, and Cloudinary. It features instant messaging with read receipts, voice notes, media sharing, secure authentication, and a sleek, responsive UI with dark/light mode. The app ensures data protection with strong security and is production-ready.
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa

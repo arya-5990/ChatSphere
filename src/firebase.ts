@@ -1,5 +1,9 @@
 import { initializeApp, getApps } from 'firebase/app';
+<<<<<<< HEAD
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, getCountFromServer } from 'firebase/firestore';
+=======
+import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, getCountFromServer } from 'firebase/firestore';
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';

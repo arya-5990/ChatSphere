@@ -174,7 +174,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   // Scroll to bottom when message groups change
   useEffect(() => {
     if (messageGroups.length > 0) {
+<<<<<<< HEAD
       // No manual scroll needed for inverted FlatList
+=======
+      // scrollToBottom(); // Removed as FlatList is inverted
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
     }
   }, [messageGroups]);
 
@@ -201,7 +205,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   // Force scroll to bottom when component mounts
   useEffect(() => {
     if (messageGroups.length > 0 && !loading) {
+<<<<<<< HEAD
       // Initial layout handled by inverted FlatList
+=======
+      // setTimeout(() => { // Removed as FlatList is inverted
+      //   scrollToBottom();
+      // }, 100);
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
     }
   }, [loading]);
 

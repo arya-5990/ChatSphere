@@ -5,6 +5,10 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+<<<<<<< HEAD
+=======
+  Image,
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
   KeyboardAvoidingView,
   Platform,
   Alert,

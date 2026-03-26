@@ -12,7 +12,11 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SearchUsersScreen from '../screens/SearchUsersScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import ChatScreen from '../screens/ChatScreen';
+<<<<<<< HEAD
 import { getCurrentUser } from '../firebase';
+=======
+import { getCurrentUser, decodeToken } from '../firebase';
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
 import { useTheme } from '../theme/ThemeContext';
 
 export type RootStackParamList = {

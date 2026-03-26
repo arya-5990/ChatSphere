@@ -73,6 +73,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
         ...(profilePicUrl && { profilePic: profilePicUrl }),
       });
 
+<<<<<<< HEAD
+=======
+      console.log('Firebase registration result:', result); // Debug log
+
+>>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
       if (result.success) {
         Alert.alert(
           'Success',
