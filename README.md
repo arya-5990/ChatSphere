@@ -1,91 +1,96 @@
-<<<<<<< HEAD
-# ChatSphere 💬
+# ChatSphere
 
-A modern, secure real-time chat application built with React Native, Expo, Firebase, and Cloudinary. ChatSphere provides a comprehensive messaging experience with advanced features like read receipts, voice notes, media sharing, and secure authentication.
+ChatSphere is a real-time chat application built with React Native, Expo, Firebase, and Cloudinary. It supports one‑to‑one messaging, read receipts, voice notes, media sharing, and email‑based authentication, with a simple light/dark theme and a focus on practical security.
 
 ---
 
-## ✨ Features
+## Features
 
-### 🔐 Authentication & Security
-- Secure user authentication with email/password
-- OTP-based email verification
+### Authentication and security
+- Email and password sign‑up / sign‑in
+- OTP‑based email verification
 - Password reset flow
-- Environment-based configuration for secrets
-- Automated security checks to detect exposed keys
+- Environment‑based configuration for secrets
+- Scripted checks for accidentally exposed keys
 
-### 💬 Messaging
-- Real-time 1:1 messaging using Firebase
+### Messaging
+- Real‑time 1:1 messaging backed by Firebase
 - Read receipts (sent, delivered, seen)
-- Voice notes (record, send, play)
-- Media sharing via Cloudinary
-- Smart display of last message and unread counts
+- Voice notes (record, upload, play back)
+- Image and audio uploads via Cloudinary
+- Chat list with last message and unread counts
 
-### 🎨 User Experience
-- Light and dark theme with persistent preference
-- Modern, mobile-first UI
-- Smooth animations and transitions
-- Cross‑platform (Android, iOS, Web via Expo)
+### User experience
+- Light and dark theme with stored preference
+- Mobile‑first UI using React Native and Expo
+- Works on Android, iOS, and web (via Expo)
 
-### 🔧 Technical
-- TypeScript throughout the app
-- Firebase subcollections for scalable chat history
-- Cloudinary for media hosting (images and audio)
-- Modular folder structure and reusable services
+### Technical
+- TypeScript across the app
+- Firestore subcollections for scalable chat history
+- Cloudinary for media hosting
+- Modular folder structure with reusable services
 
 ---
 
-## 🚀 Getting Started
+## Getting started
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js (v16 or newer)
 - npm or yarn
 - Expo CLI (`npm install -g @expo/cli`)
-- Firebase project (Firestore + Auth enabled)
-- Cloudinary account
+- A Firebase project (Firestore and Auth enabled)
+- A Cloudinary account
 
 ### Installation
 
-1. Clone and enter the project:
-   ```bash
-   git clone https://github.com/yourusername/ChatSphere.git
-   cd ChatSphere
-   ```
+1. Clone the repository and enter the directory:
+  ```bash
+  git clone https://github.com/yourusername/ChatSphere.git
+  cd ChatSphere
+  ```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   cd backend && npm install
-   ```
+2. Install dependencies for the app and backend:
+  ```bash
+  npm install
+  cd backend && npm install
+  ```
 
-3. Create environment file (do not commit this file):
-   ```bash
-   # At project root
-   cp env.example .env
-   ```
+3. Create an environment file (do not commit this file):
+  ```bash
+  # At the project root
+  cp env.example .env
+  ```
 
-4. Fill in `.env` with your real keys (see “Security & Configuration” below).
+4. Fill in `.env` with your real keys (see "Configuration and security" below).
 
-5. Start the Expo dev server:
-   ```bash
-   npm start
-   ```
+5. Start the Expo development server from the project root:
+  ```bash
+  npm start
+  ```
 
-6. Run on a target:
-   ```bash
-   # Android
-   npm run android
+6. Run the app on a target device or platform:
+  ```bash
+  # Android
+  npm run android
 
-   # iOS (on macOS)
-   npm run ios
+  # iOS (on macOS)
+  npm run ios
 
-   # Web
-   npm run web
-   ```
+  # Web
+  npm run web
+  ```
+
+To start the optional email backend:
+
+```bash
+cd backend
+npm start
+```
 
 ---
 
-## 🏗️ Project Structure
+## Project structure
 
 ```text
 ChatSphere/
@@ -94,21 +99,22 @@ ChatSphere/
 ├── src/
 │   ├── config/              # Environment/config helpers
 │   ├── navigation/          # Navigation stack
-│   ├── screens/             # All screens (auth, chats, profile, etc.)
+│   ├── screens/             # Screens (auth, chats, profile, etc.)
 │   ├── services/            # Cloudinary, email, OTP services
 │   ├── theme/               # Theme context and colors
 │   └── firebase.ts          # Firebase init and user helpers
 ├── backend/                 # Email server for OTP
 ├── android/                 # Native Android project (EAS / bare builds)
 ├── assets/                  # Images, icons, fonts
-└── scripts/                 # Utility scripts (e.g. security check)
+└── scripts/                 # Utility scripts (for example, security check)
 ```
 
 ---
 
-## 🔒 Security & Configuration
+## Configuration and security
 
-### Environment Variables
+### Environment variables
+
 Create a `.env` file at the project root (never commit this file):
 
 ```bash
@@ -125,34 +131,28 @@ CLOUDINARY_API_KEY=your_actual_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_actual_cloudinary_api_secret
 ```
 
-`src/config/env.ts` is structured to read from environment variables. For production builds, configure these via your CI/CD or hosting provider.
+The file `src/config/env.ts` reads from these variables. For production builds, configure the same values through your CI/CD or hosting provider.
 
-### Best Practices
-- Never commit API keys or secrets to git
+Recommended practices:
+- Do not commit API keys or secrets to git
 - Use different keys for development and production
-- Rotate keys if they have ever been exposed
+- Rotate keys if they are ever exposed
 - Configure Firebase security rules before going live
 - Use Cloudinary upload presets with appropriate restrictions
 
-### Security Helper Script
-
-There is a helper script to scan for exposed keys:
+To run the security helper script that scans for exposed keys:
 
 ```bash
 npm run security-check
 ```
 
-This scans the repository for known key patterns and gives remediation guidance.
-
 ---
 
-## 📡 Read Receipts
+## Messaging and read receipts
 
-ChatSphere implements detailed read receipts on top of Firestore.
+Messages are stored in Firestore using a chat document with a messages subcollection.
 
-### Data Model
-
-Chats are stored in a top‑level collection with a messages subcollection:
+Example structure:
 
 - `chats/{chatId}`
   - `participants: string[]`
@@ -167,100 +167,54 @@ Chats are stored in a top‑level collection with a messages subcollection:
   - `timestamp: Timestamp`
   - `seenBy: { [userId: string]: string } // ISO timestamps`
 
-### Status Semantics
+Status semantics:
+- Sent: message has reached the server
+- Delivered: recipient's device has received the message
+- Seen: recipient has opened the chat and the message is visible
 
-- `✓` – sent to server
-- `✓✓` – delivered to recipient’s device
-- `✓✓ Seen` – recipient has viewed the message
-
-In the chat list, last messages are formatted intelligently:
-
-- Messages you sent: `sent: [message] ✓` / `sent: [message] ✓✓`
-- Multiple unread messages: `X new msgs`
-- For voice notes, counts are adapted (e.g. `1 new voice msg`).
-
-### UX Behaviour
-
-- Messages are marked read when:
-  - The chat screen is focused/opened
-  - Messages become visible in the list
-- A temporary “New Messages” divider appears at the first unread message and auto‑hides after a short delay.
-- Real‑time listeners (`onSnapshot`) keep both sides in sync.
+The chat list uses this information to show last message status and unread counts (including for voice notes).
 
 ---
 
-## 🎙 Voice Notes
+## Voice notes
 
-Voice notes are fully integrated into the messaging experience.
+Voice notes behave like regular messages but carry an audio payload.
 
-### Recording
+- Microphone permission is requested on first use
+- Recording uses `expo-av`
+- A minimum duration helps avoid accidental taps
+- Uploaded audio files are stored in Cloudinary using the `video` resource type
+- Firestore keeps the Cloudinary URL and duration
 
-- Requests microphone permission when first used
-- High‑quality audio recording via `expo-av`
-- Live duration display and recording indicator
-- Minimum duration of 1 second to avoid accidental taps
-
-### Message Shape
-
-Voice notes are stored as:
-
-```json
-{
-  "senderId": "user_id",
-  "voiceNote": {
-    "url": "https://cloudinary.com/audio_url",
-    "duration": 30
-  },
-  "timestamp": "2025-01-29T21:00:00Z",
-  "seenBy": {
-    "user_id": "2025-01-29T21:05:00Z"
-  }
-}
-```
-
-### Cloudinary Integration
-
-- Audio files are uploaded to Cloudinary using the `video` resource type
-- URLs returned by Cloudinary are stored in Firestore
-- Playback streams from Cloudinary’s CDN
-
-### UI Behaviour
-
-- Microphone button appears when the text input is empty
-- While recording, the UI shows a red indicator and timer
-- On stop, the audio is uploaded and sent as a message
-- In chat:
-  - Tap ▶️ to play, ⏸️ to pause
-  - Shows a waveform, duration, and “Playing…” indicator
-  - Only one voice note plays at a time
-
-Voice notes fully participate in read receipts and unread counts in the chat list.
+In the UI, a microphone button appears when the text input is empty. While recording, the user sees an indicator and timer; once recording stops, the audio is uploaded and sent as a message. Only one voice note plays at a time in a conversation.
 
 ---
 
-## 📧 OTP & Email Flow
+## OTP and email flow
 
-- OTPs are generated from a predefined, randomized list
-- OTP and timestamp are stored in-memory on the client side for verification
-- Email sending is handled by the backend Node.js service (`backend/`)
-- If the backend is unavailable in development, email sending is simulated in logs
+- OTPs are generated from a predefined randomized list
+- OTP and timestamp are kept on the client for verification
+- Email delivery is handled by the Node.js backend in `backend/`
+- In development, if the backend is not running, email sending can be simulated in logs
 
-Flows covered:
+Covered flows:
 - Send OTP for email verification
-- Verify OTP with expiry (10 minutes)
-- Resend OTP (invalidates previous one)
+- Verify OTP with an expiry window (for example, ten minutes)
+- Resend OTP (invalidates the previous code)
 
 ---
 
-## 📱 NPM Scripts
+## Scripts
 
-- `npm start` – Start the Expo dev server
-- `npm run android` – Run on Android device/emulator
-- `npm run ios` – Run on iOS simulator (macOS)
-- `npm run web` – Run in a web browser
-- `npm run security-check` – Scan the repo for exposed keys
+From the project root:
 
-The backend email server can be started with:
+- `npm start` – start the Expo development server
+- `npm run android` – run on an Android device or emulator
+- `npm run ios` – run on an iOS simulator (macOS)
+- `npm run web` – run in a web browser
+- `npm run security-check` – scan the repository for exposed keys
+
+The backend email server is started with:
 
 ```bash
 cd backend
@@ -269,38 +223,33 @@ npm start
 
 ---
 
-## 🛠️ Tech Stack
+## Tech stack
 
-- React Native + Expo
+- React Native and Expo
 - TypeScript
-- Firebase (Auth, Firestore, Storage)
+- Firebase (Authentication, Firestore, Storage)
 - Cloudinary (images and audio)
 - React Navigation
-- React Context + hooks for theme and auth‑related state
-- Node.js email service for OTP (development/optional)
+- React Context and hooks for theme and auth‑related state
+- Node.js email service for OTP handling
 
 ---
 
-## 🤝 Contributing
+## Contributing
+
+If you want to experiment or contribute:
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m "Add amazing feature"`
-4. Push to your fork: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Make and commit your changes: `git commit -m "Describe your change"`
+4. Push to your fork: `git push origin feature/your-feature-name`
+5. Open a pull request
 
 ---
 
-## 📞 Help & Support
+## Support
 
 - Run `npm run security-check` if you suspect exposed keys
-- Check Firebase and Cloudinary dashboards for configuration issues
-- Open a GitHub issue with logs and reproduction steps
+- Check your Firebase and Cloudinary dashboards for configuration issues
+- If something looks like a bug in this repository, open an issue with logs and clear reproduction steps
 
----
-
-**Built with ❤️ using React Native, Expo, Firebase, and Cloudinary.**
-=======
-# ChatSphere
-ChatSphere is a secure real-time chat app built with React Native, Expo, Firebase, and Cloudinary. It features instant messaging with read receipts, voice notes, media sharing, secure authentication, and a sleek, responsive UI with dark/light mode. The app ensures data protection with strong security and is production-ready.
->>>>>>> dc74e0341839fea70b3e14e7f0c258e744e45caa
