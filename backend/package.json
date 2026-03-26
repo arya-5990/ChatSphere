@@ -1,0 +1,26 @@
+{
+  "name": "chatsphere-email-server",
+  "version": "1.0.0",
+  "description": "Email server for ChatSphere OTP functionality",
+  "main": "emailServer.js",
+  "scripts": {
+    "start": "node emailServer.js",
+    "dev": "nodemon emailServer.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.7",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "email",
+    "otp",
+    "chatsphere",
+    "nodemailer"
+  ],
+  "author": "ChatSphere Team",
+  "license": "MIT"
+} 
